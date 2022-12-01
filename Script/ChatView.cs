@@ -1,13 +1,19 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Linq;
 using TMPro;
 using Unity.VisualScripting;
 using UnityEngine;
+using UnityEngine.EventSystems;
 using UnityEngine.UI;
 
-public class ChatView : MonoBehaviour
+public class ChatView : MonoBehaviour, IPointerClickHandler
 {
+    private CSVData csvData;
+    private GameManager gamemanager;
+
+
     private Image chat_Character_Background;
     private Image chat_Name_Background;
 
@@ -20,13 +26,19 @@ public class ChatView : MonoBehaviour
     [SerializeField]
     private TextMeshProUGUI TM_chat_Name;
 
-    private List<string> chat_loadList;
-    private List<string> chat_floatingList;
+    private Dictionary<int, int> DIC_PlayData = new Dictionary<int, int>();
+    private Dictionary<int, string> DIC_ChatData = new Dictionary<int, string>();
+
+    private int talkUI_TalkCount = 0;
+
+    private bool talkUI_Active = false;
+
 
     private void Start()
     {
-        chat_loadList       = new List<string>();
-        chat_floatingList   = new List<string>();
+        csvData = new CSVData();
+        gamemanager = GameObject.Find("GameManager").GetComponent<GameManager>();
+        csvData.CSVDataLoadStart();
         getChildComponent();
     }
 
@@ -36,48 +48,118 @@ public class ChatView : MonoBehaviour
         chat_Name_Background        = obj_Name_Background.GetComponent<Image>();
     }
 
-    #region 대화 데이터 가져오는 부분
-
     internal void Chat_Initial()
     {
         TM_chat_Character.text = null;
         TM_chat_Name.text = null;
-        chat_floatingList.Clear();
+        DIC_PlayData.Clear();
+        DIC_ChatData.Clear();
     }
 
-    internal void ChatText(NPCName npcname, int datanumber)//무슨 데이터를 불러올 지 확인하는 부분
+    #region 대화 데이터 UI로 표시
+    private void ChatUI_ChatShow()//대화 UI에 표시
     {
-        TM_chat_Character.text = null;
-        //chat_loadList //파일 데이터 불러오기
+        if (DIC_ChatData == null)
+            return;
+
+        TM_chat_Name.text = ChatUI_WhoTalk(DIC_ChatData[talkUI_TalkCount]); //누가 말했는지 판별
+        TM_chat_Character.text = DIC_ChatData[talkUI_TalkCount].Split(":")[1];
     }
 
-    private void ChatDataFloating()
+    private string ChatUI_WhoTalk(string whotalkdata) //대화 누가 하는지 확인
     {
-        chat_floatingList.Clear();
-        //sql도 해보고 txt도 해봐서 저장하기
+        string tmp = whotalkdata;
+        string[] tmpSplit = tmp.Split(":");
+
+        switch(tmpSplit[0])
+        {
+            case "-1":
+                return "Player";
+            case "0":
+                return "LeftMan";
+            case "1":
+                return "RightMan";
+            default:
+                return null;
+        }
     }
 
-    internal void Chat_FirstChat()
+    public void OnPointerClick(PointerEventData eventData) //대화창 클릭(Space키로 변경 가능하게)
     {
-        //데이터 파일 불러오는 부분
-        //TM_chat_Character.text = 
+        if(talkUI_Active == true)
+            Chat_NextChat();
     }
 
-    internal void Chat_NextChat()
+    //============================대화 창 넘기기==========================
+    internal void Chat_NextChat()//다음 대화 UI로 넘기기
     {
+        bool talkcheck = false;
+        talkcheck = Chat_StopChat();
 
+        if (talkcheck == false)
+            talkUI_TalkCount++;
+        else
+            gamemanager.NPCChatSave(TM_chat_Name.text, talkUI_TalkCount);
+
+        ChatUI_ChatShow();
     }
 
-    internal void Chat_EndChat()
+    private bool Chat_StopChat()//대화문 다 사용되었을 시 안돌아가게 확인
     {
-        StartCoroutine("ChatViewEnd");
+        if (DIC_ChatData == null)
+            return true;
+
+        if(DIC_ChatData[talkUI_TalkCount].Split(":").Length > 2)
+            return true;
+        return false;
     }
 
+    //============================대화 창 넘기기==========================^^
     #endregion
 
-    #region 대화창과 대화문 이벤트에 대한 것
+    #region 진행상황 데이터 주고, CSV데이터 받기
+    internal void PlayData_Send(Dictionary<int, int> dic_playdata) //GameManager로부터 진행상황 데이터 받기
+    {
+        DIC_PlayData.Clear();
+        DIC_PlayData = dic_playdata;
+        talkUI_TalkCount = dic_playdata.Keys.First() + dic_playdata.Values.First();
 
-    internal IEnumerator ChatViewPlay() //대화창 서서히 나타나는 코루틴
+        Debug.Log(talkUI_TalkCount);
+        CSVData_GetSetPlayData();
+    }
+
+    private void CSVData_GetSetPlayData()//CSVData로 데이터 보내고 받기
+    {
+        if (DIC_PlayData == null)
+            return;
+
+        DIC_ChatData.Clear();
+        DIC_ChatData = csvData.PlayData_GetData(DIC_PlayData); //나중에 가독성 수정
+
+        ChatUI_ChatShow();
+    }
+
+    private void ChatDataReset()
+    {
+        DIC_PlayData.Clear();
+    }
+    #endregion
+
+
+    #region FadeIn, FadeOut
+    internal void Chat_FadeIn()
+    {
+        talkUI_Active = true;
+        StartCoroutine(Co_ChatViewFadeIn());
+    }
+
+    internal void Chat_FadeOut()//대화창 페이드아웃 코루틴
+    {
+        talkUI_Active = false;
+        StartCoroutine(Co_ChatViewFadeOut());
+    }
+
+    internal IEnumerator Co_ChatViewFadeIn() //대화창 서서히 나타나는 코루틴
     {
         float time = 1f;
         float current = 0;
@@ -106,7 +188,7 @@ public class ChatView : MonoBehaviour
         yield return new WaitForSeconds(1);
     }
 
-    internal IEnumerator ChatViewEnd()
+    internal IEnumerator Co_ChatViewFadeOut()
     {
         float time = 1f;
         float current = 0;
@@ -141,7 +223,7 @@ public class ChatView : MonoBehaviour
         TM_chat_Name.gameObject.SetActive(onoff);
     }
 
-internal IEnumerator ChatCharacterPlay()
+    internal IEnumerator ChatCharacterPlay()
     {
         yield return null;
     }

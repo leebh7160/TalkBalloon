@@ -1,5 +1,7 @@
 using System.Collections;
 using System.Collections.Generic;
+using System.IO;
+using System.Runtime.CompilerServices;
 using UnityEngine;
 using UnityEngine.TextCore.Text;
 
@@ -21,22 +23,9 @@ public class GameManager : MonoBehaviour
     {
     }
 
-    // Update is called once per frame
-    void Update()
-    {
-    }
-
     private void GamePause(bool pause)
     {
         isGamePause = pause;
-    }
-
-    private void OnMouseDown()
-    {
-        if (isGamePause == false)
-            return;
-
-        chatView.Chat_NextChat();
     }
 
 
@@ -44,19 +33,34 @@ public class GameManager : MonoBehaviour
 
     internal void PlayerNPCChat(string tagdata)
     {
-        NPCName npcname;
-        npcname = chatNumberManager.GetNPCNameData(tagdata);
-        npctalknumber = chatNumberManager.GetTalkingData(npcname);
-        chatView.ChatText(npcname, npctalknumber);
-        chatView.Chat_FirstChat();
+        Dictionary<int, int> instantPlayData = new Dictionary<int, int>();
+
         GamePause(true);
-        StartCoroutine(chatView.ChatViewPlay());
+
+        NPCName npcname;
+        npcname         = chatNumberManager.GetNPCNameData(tagdata);
+        npctalknumber   = chatNumberManager.GetTalkingData(npcname);
+        instantPlayData.Add(npctalknumber, (int)npcname);
+        Debug.Log(npctalknumber);
+
+        chatView.PlayData_Send(instantPlayData);
+        chatView.Chat_FadeIn();
     }
 
     internal void PlayerNPCChatEnd()
     {
         GamePause(false);
-        StartCoroutine(chatView.ChatViewEnd());
+        StartCoroutine(chatView.Co_ChatViewFadeOut());
+    }
+    #endregion
+
+    #region NPC 대화 저장
+    internal void NPCChatSave(string npcname_str, int talkcount)
+    {
+        NPCName npcname;
+        npcname = chatNumberManager.GetNPCNameData(npcname_str);
+
+        chatNumberManager.SetTalkingData(npcname, talkcount);
     }
     #endregion
 }

@@ -12,7 +12,7 @@ public class Character : MonoBehaviour
     private float speed = 5;
 
     private Vector3 position;
-
+    private bool talkNPC = false;
 
     void Start()
     {
@@ -21,6 +21,12 @@ public class Character : MonoBehaviour
     void Update()
     {
         PlayerMove();
+
+        if (Input.GetKeyDown(KeyCode.E))
+            talkNPC = true;
+        else if (Input.GetKeyUp(KeyCode.E))
+            talkNPC = false;
+
     }
 
     private void PlayerMove()
@@ -31,12 +37,14 @@ public class Character : MonoBehaviour
         this.transform.position = position;
     }
 
-    private void OnTriggerEnter2D(Collider2D collision)
+    private void OnTriggerStay2D(Collider2D collision)
     {
-        if (collision.tag == "NPC")
+        if (collision.tag == "NPC" && talkNPC == true)
+        {
+            talkNPC = false;
             gameManager.PlayerNPCChat(collision.name);
+        }
     }
-
     private void OnTriggerExit2D(Collider2D collision)
     {
         if (collision.tag == "NPC")
